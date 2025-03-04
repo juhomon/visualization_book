@@ -1,0 +1,68 @@
+---
+title: "Airway dataset heatmaps"
+author: "Juho Mononen"
+date: "2025-03-04"
+output: html_document
+knit: (function(input, encoding) {
+  rmarkdown::render(input, output_dir = "docs")})
+---
+
+# Packages 
+
+```{r}
+library(ComplexHeatmap)
+library(airway)
+library(DESeq2)
+library(ggplot2)
+library(forcats)
+```
+
+## Initializing data
+
+```{r}
+library(airway)
+library(DESeq2)
+data("airway")
+
+# Perform DEA
+dds <- DESeqDataSet(airway, design = ~ cell + dex)
+dds <- DESeq(dds, betaPrior=FALSE)
+res <- results(dds, contrast = c('dex','trt','untrt'))
+res <- lfcShrink(dds, contrast = c('dex','trt','untrt'), res=res, type = 'normal')
+
+# normalize counts 
+dds <- vst(dds)
+```
+
+```{r results='hide'}
+# significant genes to plot
+sig_genes <- na.omit(as.data.frame(res))
+sig_genes <- sig_genes[sig_genes$padj<0.05, ]
+
+# count matrix
+mat <- assay(dds)[rownames(sig_genes), ]
+
+# meta for row
+meta_row <- as.data.frame(elementMetadata(dds[rownames(sig_genes), ]))
+meta_row <- cbind(meta_row,sig_genes)
+
+# meta columns
+meta_col <- as.data.frame(colData(dds))
+```
+# Drawing heatmaps 
+
+```{r}
+top_anno <- HeatmapAnnotation(df = meta_col[,c("dex","cell")], 
+                              col = list(dex = c("trt"="darkred", "untrt"="dodgerblue4"),
+                                         cell = c(N052611="#009E73", N061011="#D55E00", N080611="#56B4E9", N61311="#F0E442")),
+                              border = TRUE)
+
+draw(
+  Heatmap(t(scale(t(mat))), name = "Z-score", border=TRUE,
+          show_row_names = FALSE,
+          show_row_dend = FALSE,
+          show_column_names = FALSE,
+          top_annotation = top_anno),
+  merge_legend=TRUE)
+```
+
